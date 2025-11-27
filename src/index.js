@@ -1,16 +1,13 @@
-// File: src/index.js
-
 export default {
   async fetch(request, env, ctx) {
-    // --- CORS HEADERS (Required for Localhost/Browser Access) ---
+    // --- CORS HEADERS (Required for Localhost) ---
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*", // Allows access from any domain/localhost
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, X-Time-Token"
     };
 
-    // 1. HANDLE BROWSER PRE-FLIGHT (OPTIONS request)
-    // Browsers always send this first to check permissions
+    // 1. HANDLE PRE-FLIGHT (OPTIONS)
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
@@ -21,27 +18,50 @@ export default {
 <b>Parse error</b>:  syntax error, unexpected '?' in <b>/var/www/html/libs/db_connect.php</b> on line <b>14</b><br />
 `;
 
-    // 2. GET THE TOKEN & SECRET
+    // 2. GET CREDENTIALS
     const receivedToken = request.headers.get("X-Time-Token");
     const secretSeed = env.API_SECRET; 
 
-    // Helper to return Stealth Response with CORS (so browser doesn't block the error message)
+    // --- 🔍 DEBUG LOGS (View in 'wrangler tail') ---
+    // WARNING: Remove these lines before going to Production!
+    console.log("================ DEBUG START ================");
+    console.log("1. Secret from Env:", secretSeed ? `'${secretSeed}'` : "NULL (Check Secrets!)");
+    console.log("2. Token from Client:", receivedToken);
+    
+    // Calculate Server Time
+    const timeStep = 30; 
+    const now = Math.floor(Date.now() / 1000);
+    const currentSlot = Math.floor(now / timeStep);
+    console.log("3. Server Time Slot:", currentSlot);
+
+    // Calculate Expected Tokens
+    const expectedNow = await generateHash(secretSeed || "", currentSlot);
+    const expectedPrev = await generateHash(secretSeed || "", currentSlot - 1);
+    
+    console.log("4. Expected Token (Now):", expectedNow);
+    console.log("5. Expected Token (Prev):", expectedPrev);
+
+    if (receivedToken === expectedNow) console.log("✅ MATCH: Matched Current Time");
+    else if (receivedToken === expectedPrev) console.log("✅ MATCH: Matched Previous Time (Lag)");
+    else console.log("❌ FAIL: No Match found.");
+    console.log("================ DEBUG END ================");
+    // --------------------------------------------------
+
+    // Helper for Stealth Response
     const returnStealth = () => new Response(FAKE_ERROR, { 
       status: 200, 
-      headers: { 
-        "Content-Type": "text/html",
-        ...corsHeaders 
-      } 
+      headers: { "Content-Type": "text/html", ...corsHeaders } 
     });
 
+    // 3. VALIDATION CHECKS
     if (!receivedToken || !secretSeed) {
+       console.log("⛔ Blocked: Missing Token or Secret");
        return returnStealth();
     }
 
-    // 3. VERIFY TIME-BASED TOKEN
-    const isValid = await verifyTimeToken(receivedToken, secretSeed);
-
-    if (!isValid) {
+    // Check if token matches either slot
+    if (receivedToken !== expectedNow && receivedToken !== expectedPrev) {
+       console.log("⛔ Blocked: Invalid Token");
        return returnStealth();
     }
 
@@ -58,38 +78,21 @@ export default {
         success: true,
         meta: result.meta,
         results: result.results
-      }, { 
-        headers: corsHeaders // <--- Crucial: Add headers to success response too
-      });
+      }, { headers: corsHeaders });
 
     } catch (err) {
+      console.log("⚠️ SQL Error:", err.message);
       return Response.json({
         success: false,
         error: err.message
-      }, { 
-        status: 200, 
-        headers: corsHeaders 
-      });
+      }, { status: 200, headers: corsHeaders });
     }
   }
 };
 
 /**
- * Checks if the token matches the generated hash for NOW or NOW-30s
+ * Creates SHA-256 Hash of "Seed + TimeSlot"
  */
-async function verifyTimeToken(token, seed) {
-  const encoder = new TextEncoder();
-  const timeStep = 30; 
-  const now = Math.floor(Date.now() / 1000);
-  const currentSlot = Math.floor(now / timeStep);
-  const previousSlot = currentSlot - 1; 
-
-  const validNow = await generateHash(seed, currentSlot);
-  const validPrev = await generateHash(seed, previousSlot);
-
-  return (token === validNow || token === validPrev);
-}
-
 async function generateHash(seed, timeSlot) {
   const encoder = new TextEncoder();
   const dataToHash = seed + timeSlot.toString();
