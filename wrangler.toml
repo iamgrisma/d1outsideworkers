@@ -1,4 +1,4 @@
-name = "stealth-forex-api"
+name = "b2-stealth"
 main = "src/index.js"
 compatibility_date = "2024-11-27"
 
