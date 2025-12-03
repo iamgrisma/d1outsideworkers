@@ -9,4 +9,3 @@ database_name = "chhotkari"
 database_id = "cf2d6236-f746-4ab1-b01e-791944638b5f"
 
 #Chhotkari is a news app which is hosted as a worker but this api will supply developers to test with database even in the local environment.
-#Make sure you have an API_SECRET in the secret of this worker project and you provide the same secret to the local.
