@@ -1,9 +1,9 @@
-name = "b2-stealth"
+name = "api"
 main = "src/index.js"
 compatibility_date = "2024-11-27"
 
 # D1 Database Binding
 [[d1_databases]]
 binding = "DB"
-database_name = "forex-rates"
-database_id = "05ede330-5c35-4aee-8843-6c3527817925"
+database_name = "chhotkari"
+database_id = "cf2d6236-f746-4ab1-b01e-791944638b5f"
